@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -21,24 +22,25 @@ type RegisterInput struct {
 
 func Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`, http.StatusMethodNotAllowed)
+		http.Error(w, `{"success": false, "error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`, http.StatusMethodNotAllowed)
 		return
 	}
 
 	var input RegisterInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error": {"code": "BAD_REQUEST", "message": "Taarifa hazisomeki"}}`, http.StatusBadRequest)
+		http.Error(w, `{"success": false, "error": {"code": "BAD_REQUEST", "message": "Taarifa hazisomeki"}}`, http.StatusBadRequest)
 		return
 	}
 
 	if input.FullName == "" || input.Email == "" || input.Password == "" {
-		http.Error(w, `{"error": {"code": "VALIDATION_FAILED", "message": "Jaza taarifa zote muhimu"}}`, http.StatusBadRequest)
+		http.Error(w, `{"success": false, "error": {"code": "VALIDATION_FAILED", "message": "Jaza taarifa zote muhimu"}}`, http.StatusBadRequest)
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 10)
 	if err != nil {
-		http.Error(w, `{"error": {"code": "SERVER_ERROR", "message": "Kosa la kiusalama"}}`, http.StatusInternalServerError)
+		log.Printf("[AUTH ERROR] Kushindwa ku-hash password: %v", err)
+		http.Error(w, `{"success": false, "error": {"code": "SERVER_ERROR", "message": "Kosa la kiusalama"}}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -51,7 +53,9 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	var insertedID string
 	err = config.DB.QueryRow(query, input.FullName, input.Email, string(hashedPassword)).Scan(&insertedID)
 	if err != nil {
-		http.Error(w, `{"error": {"code": "CONFLICT", "message": "Email imeshasajiliwa au kosa la database"}}`, http.StatusConflict)
+		// LOGGING ERROR HALISI YA SQL HAPA KUSAIDIA DEBUGGING
+		log.Printf("[AUTH DB ERROR] Kosa wakati wa kusajili mtumiaji mpya: %v", err)
+		http.Error(w, `{"success": false, "error": {"code": "CONFLICT", "message": "Kuna tatizo la Database. Email inaweza kuwa imeshasajiliwa. (Tazama Render Logs)"}}`, http.StatusConflict)
 		return
 	}
 
@@ -70,13 +74,13 @@ type LoginInput struct {
 
 func Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`, http.StatusMethodNotAllowed)
+		http.Error(w, `{"success": false, "error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`, http.StatusMethodNotAllowed)
 		return
 	}
 
 	var input LoginInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error": {"code": "BAD_REQUEST", "message": "Taarifa hazisomeki"}}`, http.StatusBadRequest)
+		http.Error(w, `{"success": false, "error": {"code": "BAD_REQUEST", "message": "Taarifa hazisomeki"}}`, http.StatusBadRequest)
 		return
 	}
 
@@ -84,12 +88,13 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	query := `SELECT id, password_hash, role FROM users WHERE email = $1`
 	err := config.DB.QueryRow(query, input.Email).Scan(&user.ID, &user.PasswordHash, &user.Role)
 	if err != nil {
-		http.Error(w, `{"error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`, http.StatusUnauthorized)
+		log.Printf("[AUTH DB ERROR] Mtumiaji hajapatikana au kosa la SQL wakati wa Login: %v", err)
+		http.Error(w, `{"success": false, "error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`, http.StatusUnauthorized)
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
-		http.Error(w, `{"error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`, http.StatusUnauthorized)
+		http.Error(w, `{"success": false, "error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`, http.StatusUnauthorized)
 		return
 	}
 
@@ -106,7 +111,8 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
-		http.Error(w, `{"error": {"code": "SERVER_ERROR", "message": "Imeshindwa kutengeneza ufunguo"}}`, http.StatusInternalServerError)
+		log.Printf("[AUTH ERROR] Imeshindwa kusign JWT Token: %v", err)
+		http.Error(w, `{"success": false, "error": {"code": "SERVER_ERROR", "message": "Imeshindwa kutengeneza ufunguo"}}`, http.StatusInternalServerError)
 		return
 	}
 

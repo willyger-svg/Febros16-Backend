@@ -2,6 +2,7 @@ package users
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"febros16-backend/config"
@@ -11,7 +12,7 @@ import (
 
 func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, `{"error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`, http.StatusMethodNotAllowed)
+		http.Error(w, `{"success": false, "error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`, http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -42,6 +43,7 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 	)
 	
 	if err != nil {
+		log.Printf("[USER DB ERROR] Kosa kuvuta profile ya mtumiaji %s: %v", userID, err)
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte(`{"success": false, "error": {"code": "NOT_FOUND", "message": "Mtumiaji hajapatikana"}}`))
 		return
