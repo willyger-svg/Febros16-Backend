@@ -2,43 +2,44 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 
 	"febros16-backend/config"
 	"febros16-backend/internal/auth"
+	"febros16-backend/internal/middleware"
 )
 
-// CorsMiddleware inawezesha Frontend ya Vercel (na popote pengine) kuwasiliana na Backend ya Render
-func CorsMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-
-		// Kama ni preflight request (OPTIONS), irudishe mapema
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next(w, r)
-	}
-}
-
 func main() {
-	// Washa database na utengeneze majedwali (Auto-Migrate)
+	// Initialize Database and Auto-Migrate
 	config.ConnectDB()
 
-	// Njia ya mwanzo (Testing)
-	http.HandleFunc("/", CorsMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Karibu kwenye Backend ya FEBROS16! API ipo hewani.")
-	}))
+	// Create a new ServeMux for routing
+	mux := http.NewServeMux()
 
-	// Njia za Usajili na Kuingia (Authentication Routes) zimefungwa ndani ya CorsMiddleware
-	http.HandleFunc("/api/v1/auth/register", CorsMiddleware(auth.Register))
-	http.HandleFunc("/api/v1/auth/login", CorsMiddleware(auth.Login))
+	// Health Check / Root Endpoint
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"message": "FEBROS16 API is running", "status": "healthy"}`)
+	})
 
-	// Washa Server
-	fmt.Println("Server inawaka port 8080...")
-	http.ListenAndServe(":8080", nil)
+	// Auth Endpoints (API v1)
+	mux.HandleFunc("/api/v1/auth/register", auth.Register)
+	mux.HandleFunc("/api/v1/auth/login", auth.Login)
+
+	// Apply Middlewares: Logger -> CORS -> Mux
+	handler := middleware.LoggerMiddleware(middleware.CORSMiddleware(mux))
+
+	// Determine Port
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	// Start Server
+	log.Printf("Server is starting on port %s...", port)
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }
