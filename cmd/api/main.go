@@ -34,17 +34,13 @@ func main() {
 	mux.HandleFunc("/api/v1/users/me", middleware.RequireAuth(users.GetMyProfile))
 
 	// CONTENT Endpoints (Phase 3)
-	mux.HandleFunc("/api/v1/articles", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			content.GetArticles(w, r)
-		} else if r.Method == http.MethodPost {
-			middleware.RequireAuth(content.CreateArticle)(w, r)
-		} else {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			w.Write([]byte(`{"success": false, "error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`))
-		}
-	})
+	mux.HandleFunc("GET /api/v1/articles", content.GetArticles)
+	mux.HandleFunc("POST /api/v1/articles", middleware.RequireAuth(content.CreateArticle))
+	
+	// Single Article Operations
+	mux.HandleFunc("GET /api/v1/articles/{id}", content.GetArticle)
+	mux.HandleFunc("PUT /api/v1/articles/{id}", middleware.RequireAuth(content.UpdateArticle))
+	mux.HandleFunc("DELETE /api/v1/articles/{id}", middleware.RequireAuth(content.DeleteArticle))
 
 	// Apply Middlewares: Logger -> CORS -> Mux
 	handler := middleware.LoggerMiddleware(middleware.CORSMiddleware(mux))
