@@ -6,28 +6,40 @@ This document serves as the primary contract between the FEBROS16 Backend and Fr
 - Development: `http://localhost:8080`
 - Production: `https://febros16-backend.onrender.com` (or your configured Render URL)
 
-## Authentication
-Most endpoints (except public ones like login/register) require a JWT token in the `Authorization` header.
-Format: `Authorization: Bearer <your_jwt_token>`
+## Authentication & Protected Middleware
+Most endpoints require authentication. We use a **JWT (JSON Web Token)** approach.
 
-## Response Format
-All successful responses return a JSON object with a status code of `200` or `201`.
+**How the Middleware Works:**
+1. The frontend must send the JWT in the HTTP headers:
+   `Authorization: Bearer <your_jwt_token>`
+2. The `RequireAuth` middleware intercepts the request.
+3. It verifies the signature and expiration of the token using the `JWT_SECRET`.
+4. If valid, it extracts the `user_id` and `role` and injects them into the Go `context (ctx)`.
+5. The downstream handler (e.g., `GetMyProfile`) reads the `user_id` from the context to fetch user data securely without trusting client input.
+
+## Standard Response Format
+All successful responses return a JSON object with `success: true`.
 ```json
 {
-  "message": "Success message or description",
-  "data": { ... } // Optional: Contains the requested payload
+  "success": true,
+  "message": "Optional success message",
+  "data": { ... } // Contains the requested payload
 }
 ```
 
-## Error Format
-All errors return an appropriate HTTP status code (e.g., 400, 401, 403, 404, 500) and a standardized JSON body:
+## Standard Error Format
+All errors return an appropriate HTTP status code (400, 401, 403, 404, 500) and `success: false`.
 ```json
 {
-  "error": "Short error code or description"
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE_STRING",
+    "message": "Human readable error description"
+  }
 }
 ```
 
-## Current Endpoints (MVP)
+## Current Endpoints (Phase 2 - MVP)
 
 ### 1. Registration
 - **Method:** `POST`
@@ -43,6 +55,7 @@ All errors return an appropriate HTTP status code (e.g., 400, 401, 403, 404, 500
 - **Response (201 Created):**
   ```json
   {
+    "success": true,
     "message": "Usajili umefanikiwa kikamilifu!"
   }
   ```
@@ -60,8 +73,11 @@ All errors return an appropriate HTTP status code (e.g., 400, 401, 403, 404, 500
 - **Response (200 OK):**
   ```json
   {
+    "success": true,
     "message": "Umeingia kikamilifu!",
-    "token": "eyJhbGciOiJIUzI1NiIsInR..."
+    "data": {
+      "token": "eyJhbGciOiJIUzI1NiIsInR..."
+    }
   }
   ```
 
@@ -79,14 +95,10 @@ All errors return an appropriate HTTP status code (e.g., 400, 401, 403, 404, 500
         "full_name": "John Doe",
         "email": "john@example.com",
         "role": "user",
-        "created_at": "2026-10-02...",
-        "profile": {
-          "id": "uuid",
-          "user_id": "uuid-here",
-          "bio": "Mtumiaji mpya wa FEBROS16",
-          "avatar_url": "",
-          "website": ""
-        }
+        "bio": "Mtumiaji mpya wa FEBROS16",
+        "profile_picture_url": "",
+        "created_at": "2026-10-02T15:00:00Z",
+        "updated_at": "2026-10-02T15:00:00Z"
       }
     }
   }

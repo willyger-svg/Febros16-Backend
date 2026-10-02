@@ -13,8 +13,6 @@ import (
 	"febros16-backend/internal/models"
 )
 
-// -------- SEHEMU YA USAJILI (REGISTER) --------
-
 type RegisterInput struct {
 	FullName string `json:"full_name"`
 	Email    string `json:"email"`
@@ -40,38 +38,22 @@ func Register(w http.ResponseWriter, r *http.Request) {
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 10)
 	if err != nil {
-		http.Error(w, `{"error": {"code": "SERVER_ERROR", "message": "Kosa la kiusalama ndani ya server"}}`, http.StatusInternalServerError)
+		http.Error(w, `{"error": {"code": "SERVER_ERROR", "message": "Kosa la kiusalama"}}`, http.StatusInternalServerError)
 		return
 	}
 
-	user := models.User{
-		FullName:     input.FullName,
-		Email:        input.Email,
-		PasswordHash: string(hashedPassword),
-		Role:         "user",
-	}
-
-	// Anza transaction kuhakikisha User na Profile vinatengenezwa pamoja
-	tx := config.DB.Begin()
-
-	if err := tx.Create(&user).Error; err != nil {
-		tx.Rollback()
-		http.Error(w, `{"error": {"code": "CONFLICT", "message": "Email imeshasajiliwa"}}`, http.StatusConflict)
+	// Insert using raw SQL
+	query := `
+		INSERT INTO users (full_name, email, password_hash, role, bio) 
+		VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16')
+		RETURNING id
+	`
+	var insertedID string
+	err = config.DB.QueryRow(query, input.FullName, input.Email, string(hashedPassword)).Scan(&insertedID)
+	if err != nil {
+		http.Error(w, `{"error": {"code": "CONFLICT", "message": "Email imeshasajiliwa au kosa la database"}}`, http.StatusConflict)
 		return
 	}
-
-	profile := models.Profile{
-		UserID: user.ID,
-		Bio:    "Mtumiaji mpya wa FEBROS16",
-	}
-
-	if err := tx.Create(&profile).Error; err != nil {
-		tx.Rollback()
-		http.Error(w, `{"error": {"code": "SERVER_ERROR", "message": "Imeshindwa kutengeneza profile"}}`, http.StatusInternalServerError)
-		return
-	}
-
-	tx.Commit()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -80,8 +62,6 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		"message": "Usajili umefanikiwa kikamilifu!",
 	})
 }
-
-// -------- SEHEMU YA KUINGIA (LOGIN) --------
 
 type LoginInput struct {
 	Email    string `json:"email"`
@@ -101,28 +81,27 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user models.User
-	// Tafuta kama Email ipo kwenye Database
-	if err := config.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
+	query := `SELECT id, password_hash, role FROM users WHERE email = $1`
+	err := config.DB.QueryRow(query, input.Email).Scan(&user.ID, &user.PasswordHash, &user.Role)
+	if err != nil {
 		http.Error(w, `{"error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`, http.StatusUnauthorized)
 		return
 	}
 
-	// Pima kama nenosiri linafanana na lile lililofichwa (Hash)
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		http.Error(w, `{"error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`, http.StatusUnauthorized)
 		return
 	}
 
-	// Tengeneza JWT Token (Ufunguo)
 	secretKey := os.Getenv("JWT_SECRET")
 	if secretKey == "" {
-		secretKey = "siri_ya_akiba" // Warning: Bad practice for prod, but fallback for dev
+		secretKey = "siri_ya_akiba"
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
 		"role":    user.Role,
-		"exp":     time.Now().Add(time.Hour * 72).Unix(), // Token itadumu masaa 72
+		"exp":     time.Now().Add(time.Hour * 72).Unix(),
 	})
 
 	tokenString, err := token.SignedString([]byte(secretKey))
