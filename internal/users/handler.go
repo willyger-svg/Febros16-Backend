@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"febros16-backend/config"
 	"febros16-backend/internal/middleware"
@@ -27,6 +28,7 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 
 	var user models.User
 	var bio, profilePic *string
+	var createdAt, updatedAt *time.Time
 
 	query := `
 		SELECT id, full_name, email, role, bio, profile_picture_url, created_at, updated_at 
@@ -40,8 +42,8 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 		&user.Role,
 		&bio,
 		&profilePic,
-		&user.CreatedAt,
-		&user.UpdatedAt,
+		&createdAt,
+		&updatedAt,
 	)
 	
 	if bio != nil {
@@ -49,6 +51,12 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	if profilePic != nil {
 		user.ProfilePictureURL = *profilePic
+	}
+	if createdAt != nil {
+		user.CreatedAt = *createdAt
+	}
+	if updatedAt != nil {
+		user.UpdatedAt = *updatedAt
 	}
 	
 	if err != nil {

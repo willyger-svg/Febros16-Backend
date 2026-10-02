@@ -51,12 +51,13 @@ func Register(w http.ResponseWriter, r *http.Request) {
 
 	// Insert using raw SQL
 	query := `
-		INSERT INTO users (full_name, email, password_hash, role, bio) 
-		VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16')
+		INSERT INTO users (full_name, email, password_hash, role, bio, created_at, updated_at) 
+		VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16', $4, $5)
 		RETURNING id
 	`
 	var insertedID string
-	err = config.DB.QueryRow(query, input.FullName, input.Email, string(hashedPassword)).Scan(&insertedID)
+	now := time.Now()
+	err = config.DB.QueryRow(query, input.FullName, input.Email, string(hashedPassword), now, now).Scan(&insertedID)
 	if err != nil {
 		log.Printf("[AUTH DB ERROR] Kosa wakati wa kusajili mtumiaji mpya: %v", err)
 		w.WriteHeader(http.StatusConflict) // au StatusInternalServerError kutegemea na kosa
