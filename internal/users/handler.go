@@ -26,6 +26,8 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user models.User
+	var bio, profilePic *string
+
 	query := `
 		SELECT id, full_name, email, role, bio, profile_picture_url, created_at, updated_at 
 		FROM users 
@@ -36,11 +38,18 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 		&user.FullName,
 		&user.Email,
 		&user.Role,
-		&user.Bio,
-		&user.ProfilePictureURL,
+		&bio,
+		&profilePic,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
+	
+	if bio != nil {
+		user.Bio = *bio
+	}
+	if profilePic != nil {
+		user.ProfilePictureURL = *profilePic
+	}
 	
 	if err != nil {
 		log.Printf("[USER DB ERROR] Kosa kuvuta profile ya mtumiaji %s: %v", userID, err)
