@@ -8,6 +8,7 @@ import (
 
 	"febros16-backend/config"
 	"febros16-backend/internal/auth"
+	"febros16-backend/internal/content"
 	"febros16-backend/internal/middleware"
 	"febros16-backend/internal/users"
 )
@@ -31,6 +32,19 @@ func main() {
 
 	// PROTECTED Endpoints (API v1) - zinatumia middleware.RequireAuth
 	mux.HandleFunc("/api/v1/users/me", middleware.RequireAuth(users.GetMyProfile))
+
+	// CONTENT Endpoints (Phase 3)
+	mux.HandleFunc("/api/v1/articles", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			content.GetArticles(w, r)
+		} else if r.Method == http.MethodPost {
+			middleware.RequireAuth(content.CreateArticle)(w, r)
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"success": false, "error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`))
+		}
+	})
 
 	// Apply Middlewares: Logger -> CORS -> Mux
 	handler := middleware.LoggerMiddleware(middleware.CORSMiddleware(mux))
