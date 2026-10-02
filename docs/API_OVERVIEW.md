@@ -64,3 +64,30 @@ All errors return an appropriate HTTP status code (e.g., 400, 401, 403, 404, 500
     "token": "eyJhbGciOiJIUzI1NiIsInR..."
   }
   ```
+
+### 3. Get My Profile (Protected)
+- **Method:** `GET`
+- **Path:** `/api/v1/users/me`
+- **Headers:** `Authorization: Bearer <token>`
+- **Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "user": {
+        "id": "uuid-here",
+        "full_name": "John Doe",
+        "email": "john@example.com",
+        "role": "user",
+        "created_at": "2026-10-02...",
+        "profile": {
+          "id": "uuid",
+          "user_id": "uuid-here",
+          "bio": "Mtumiaji mpya wa FEBROS16",
+          "avatar_url": "",
+          "website": ""
+        }
+      }
+    }
+  }
+  ```

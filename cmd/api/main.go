@@ -9,6 +9,7 @@ import (
 	"febros16-backend/config"
 	"febros16-backend/internal/auth"
 	"febros16-backend/internal/middleware"
+	"febros16-backend/internal/users"
 )
 
 func main() {
@@ -21,12 +22,15 @@ func main() {
 	// Health Check / Root Endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"message": "FEBROS16 API is running", "status": "healthy"}`)
+		fmt.Fprintf(w, `{"success": true, "message": "FEBROS16 API is running", "status": "healthy"}`)
 	})
 
-	// Auth Endpoints (API v1)
+	// PUBLIC Endpoints (API v1)
 	mux.HandleFunc("/api/v1/auth/register", auth.Register)
 	mux.HandleFunc("/api/v1/auth/login", auth.Login)
+
+	// PROTECTED Endpoints (API v1) - zinatumia middleware.RequireAuth
+	mux.HandleFunc("/api/v1/users/me", middleware.RequireAuth(users.GetMyProfile))
 
 	// Apply Middlewares: Logger -> CORS -> Mux
 	handler := middleware.LoggerMiddleware(middleware.CORSMiddleware(mux))

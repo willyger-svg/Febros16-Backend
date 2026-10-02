@@ -23,24 +23,24 @@ type RegisterInput struct {
 
 func Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Njia hairuhusiwi", http.StatusMethodNotAllowed)
+		http.Error(w, `{"error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`, http.StatusMethodNotAllowed)
 		return
 	}
 
 	var input RegisterInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "Taarifa hazisomeki", http.StatusBadRequest)
+		http.Error(w, `{"error": {"code": "BAD_REQUEST", "message": "Taarifa hazisomeki"}}`, http.StatusBadRequest)
 		return
 	}
 
 	if input.FullName == "" || input.Email == "" || input.Password == "" {
-		http.Error(w, "Jaza taarifa zote", http.StatusBadRequest)
+		http.Error(w, `{"error": {"code": "VALIDATION_FAILED", "message": "Jaza taarifa zote muhimu"}}`, http.StatusBadRequest)
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 10)
 	if err != nil {
-		http.Error(w, "Kosa la kiusalama", http.StatusInternalServerError)
+		http.Error(w, `{"error": {"code": "SERVER_ERROR", "message": "Kosa la kiusalama ndani ya server"}}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -48,16 +48,35 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		FullName:     input.FullName,
 		Email:        input.Email,
 		PasswordHash: string(hashedPassword),
+		Role:         "user",
 	}
 
-	if err := config.DB.Create(&user).Error; err != nil {
-		http.Error(w, "Email imeshasajiliwa", http.StatusConflict)
+	// Anza transaction kuhakikisha User na Profile vinatengenezwa pamoja
+	tx := config.DB.Begin()
+
+	if err := tx.Create(&user).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, `{"error": {"code": "CONFLICT", "message": "Email imeshasajiliwa"}}`, http.StatusConflict)
 		return
 	}
 
+	profile := models.Profile{
+		UserID: user.ID,
+		Bio:    "Mtumiaji mpya wa FEBROS16",
+	}
+
+	if err := tx.Create(&profile).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, `{"error": {"code": "SERVER_ERROR", "message": "Imeshindwa kutengeneza profile"}}`, http.StatusInternalServerError)
+		return
+	}
+
+	tx.Commit()
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
 		"message": "Usajili umefanikiwa kikamilifu!",
 	})
 }
@@ -71,33 +90,33 @@ type LoginInput struct {
 
 func Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Njia hairuhusiwi", http.StatusMethodNotAllowed)
+		http.Error(w, `{"error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`, http.StatusMethodNotAllowed)
 		return
 	}
 
 	var input LoginInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "Taarifa hazisomeki", http.StatusBadRequest)
+		http.Error(w, `{"error": {"code": "BAD_REQUEST", "message": "Taarifa hazisomeki"}}`, http.StatusBadRequest)
 		return
 	}
 
 	var user models.User
-	// 1. Tafuta kama Email ipo kwenye Database
+	// Tafuta kama Email ipo kwenye Database
 	if err := config.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		http.Error(w, "Email au Nenosiri sio sahihi", http.StatusUnauthorized)
+		http.Error(w, `{"error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`, http.StatusUnauthorized)
 		return
 	}
 
-	// 2. Pima kama nenosiri linafanana na lile lililofichwa (Hash)
+	// Pima kama nenosiri linafanana na lile lililofichwa (Hash)
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
-		http.Error(w, "Email au Nenosiri sio sahihi", http.StatusUnauthorized)
+		http.Error(w, `{"error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`, http.StatusUnauthorized)
 		return
 	}
 
-	// 3. Tengeneza JWT Token (Ufunguo)
+	// Tengeneza JWT Token (Ufunguo)
 	secretKey := os.Getenv("JWT_SECRET")
 	if secretKey == "" {
-		secretKey = "siri_ya_akiba"
+		secretKey = "siri_ya_akiba" // Warning: Bad practice for prod, but fallback for dev
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -108,15 +127,16 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
-		http.Error(w, "Imeshindwa kutengeneza ufunguo", http.StatusInternalServerError)
+		http.Error(w, `{"error": {"code": "SERVER_ERROR", "message": "Imeshindwa kutengeneza ufunguo"}}`, http.StatusInternalServerError)
 		return
 	}
 
-	// 4. Rudisha majibu na huo ufunguo kwa Frontend
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
 		"message": "Umeingia kikamilifu!",
-		"token":   tokenString,
+		"data": map[string]string{
+			"token": tokenString,
+		},
 	})
 }
-

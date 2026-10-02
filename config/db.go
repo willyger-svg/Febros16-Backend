@@ -17,7 +17,7 @@ var DB *gorm.DB
 func ConnectDB() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("Taarifa: Faili la .env halijaonekana")
+		log.Println("Taarifa: Faili la .env halijaonekana, tunatumia mfumo wa mazingira (env vars) wa kawaida.")
 	}
 
 	dbURL := os.Getenv("DATABASE_URL")
@@ -31,12 +31,16 @@ func ConnectDB() {
 		log.Fatal("Kosa kufungua Database:", err)
 	}
 
-	// HII NDIYO MAGIC ULIYOULIZIA: Inatengeneza jedwali yenyewe Supabase!
-	err = database.AutoMigrate(&models.User{})
+	// Tengeneza au update majedwali (Auto-Migrate)
+	log.Println("Inafanya Auto-Migrate ya database schemas...")
+	err = database.AutoMigrate(
+		&models.User{},
+		&models.Profile{},
+	)
 	if err != nil {
-		log.Fatal("Kosa kutengeneza jedwali:", err)
+		log.Fatal("Kosa kutengeneza majedwali:", err)
 	}
 
 	DB = database
-	log.Println("✅ Database imeunganishwa na Jedwali la 'users' lipo tayari!")
+	log.Println("✅ Database imeunganishwa na Majedwali yapo tayari!")
 }
