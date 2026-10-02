@@ -44,16 +44,23 @@ func ConnectDB() {
 func runMigrations(db *sql.DB) {
 	log.Println("🛠 Inasuka majedwali (Running Migrations) kwenye database...")
 	
-	// Soma faili la .up.sql kutoka kwenye memory (embedded)
-	content, err := migrations.FS.ReadFile("000001_create_users_table.up.sql")
-	if err != nil {
-		log.Fatalf("KOSA: Imeshindwa kusoma faili la migration: %v", err)
+	migrationFiles := []string{
+		"000001_create_users_table.up.sql",
+		"000002_add_bio_and_profile_to_users.up.sql",
 	}
 
-	// Run SQL code
-	_, err = db.Exec(string(content))
-	if err != nil {
-		log.Fatalf("KOSA LAKATILI: Imeshindwa kutengeneza table ya 'users': %v", err)
+	for _, file := range migrationFiles {
+		content, err := migrations.FS.ReadFile(file)
+		if err != nil {
+			log.Fatalf("KOSA: Imeshindwa kusoma faili la migration %s: %v", file, err)
+		}
+
+		// Run SQL code
+		_, err = db.Exec(string(content))
+		if err != nil {
+			log.Fatalf("KOSA LAKATILI: Imeshindwa ku-run migration %s: %v", file, err)
+		}
+		log.Printf("✅ Migration %s imefanikiwa!", file)
 	}
 	
 	log.Println("✅ Majedwali yapo tayari (Migrations applied successfully)!")
