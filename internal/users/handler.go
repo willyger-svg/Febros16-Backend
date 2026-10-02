@@ -66,10 +66,23 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Kuvuta hesabu ya makala alizoandika mtumiaji
+	var totalArticles int
+	countQuery := `SELECT COUNT(*) FROM articles WHERE author_id = $1`
+	err = config.DB.QueryRow(countQuery, userID).Scan(&totalArticles)
+	if err != nil {
+		log.Printf("[USER DB ERROR] Kosa kuvuta hesabu ya makala za %s: %v", userID, err)
+		totalArticles = 0 // Default to 0 on error
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"data": map[string]interface{}{
 			"user": user,
+			"stats": map[string]int{
+				"total_articles": totalArticles,
+				"total_research_projects": 0, // Placeholder kwa awamu ijayo
+			},
 		},
 	})
 }
