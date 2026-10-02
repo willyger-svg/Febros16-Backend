@@ -41,6 +41,12 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(input.Password) < 8 {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"success": false, "error": {"code": "VALIDATION_FAILED", "message": "Nenosiri lazima liwe na angalau herufi 8"}}`))
+		return
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 10)
 	if err != nil {
 		log.Printf("[AUTH ERROR] Kushindwa ku-hash password: %v", err)
