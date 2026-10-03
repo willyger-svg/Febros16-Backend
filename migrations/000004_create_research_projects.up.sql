@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS research_projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) UNIQUE NOT NULL,
+    abstract TEXT,
+    content_body TEXT NOT NULL,
+    author_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    status VARCHAR(50) DEFAULT 'ongoing',
+    start_date TIMESTAMP WITH TIME ZONE,
+    end_date TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

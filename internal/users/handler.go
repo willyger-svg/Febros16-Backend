@@ -75,13 +75,22 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 		totalArticles = 0 // Default to 0 on error
 	}
 
+	// Kuvuta hesabu ya miradi ya utafiti
+	var totalResearchProjects int
+	researchCountQuery := `SELECT COUNT(*) FROM research_projects WHERE author_id = $1`
+	err = config.DB.QueryRow(researchCountQuery, userID).Scan(&totalResearchProjects)
+	if err != nil {
+		log.Printf("[USER DB ERROR] Kosa kuvuta hesabu ya miradi ya utafiti ya %s: %v", userID, err)
+		totalResearchProjects = 0
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"data": map[string]interface{}{
 			"user": user,
 			"stats": map[string]int{
 				"total_articles": totalArticles,
-				"total_research_projects": 0, // Placeholder kwa awamu ijayo
+				"total_research_projects": totalResearchProjects,
 			},
 		},
 	})
