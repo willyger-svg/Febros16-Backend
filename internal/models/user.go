@@ -18,4 +18,6 @@ type User struct {
 	HasCompletedAssessment *bool `json:"has_completed_assessment"`
 	AssessmentData   *string    `json:"assessment_data"`
 	GoogleID         *string    `json:"google_id"`
+	IsEmailVerified  bool       `json:"is_email_verified"`
+	VerificationToken *string   `json:"-"`
 }

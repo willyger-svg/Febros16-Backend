@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -56,14 +58,26 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Insert using raw SQL
+	tokenBytes := make([]byte, 32)
+	rand.Read(tokenBytes)
+	verificationToken := hex.EncodeToString(tokenBytes)
+
 	query := `
-		INSERT INTO users (full_name, email, password_hash, role, bio, created_at, updated_at) 
-		VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16', $4, $5)
+		INSERT INTO users (full_name, email, password_hash, role, bio, created_at, updated_at, verification_token) 
+		VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16', $4, $5, $6)
 		RETURNING id
 	`
 	var insertedID string
 	now := time.Now()
-	err = config.DB.QueryRow(query, input.FullName, input.Email, string(hashedPassword), now, now).Scan(&insertedID)
+	err = config.DB.QueryRow(query, input.FullName, input.Email, string(hashedPassword), now, now, verificationToken).Scan(&insertedID)
+	
+	if err == nil {
+		go func() {
+			if sendErr := SendVerificationEmail(input.Email, verificationToken); sendErr != nil {
+				log.Printf("Error sending email to %s: %v", input.Email, sendErr)
+			}
+		}()
+	}
 	if err != nil {
 		log.Printf("[AUTH DB ERROR] Kosa wakati wa kusajili mtumiaji mpya: %v", err)
 		w.WriteHeader(http.StatusConflict) // au StatusInternalServerError kutegemea na kosa
@@ -149,4 +163,28 @@ func Login(w http.ResponseWriter, r *http.Request) {
 			"has_completed_assessment": hasCompletedAssessment != nil && *hasCompletedAssessment,
 		},
 	})
+}
+
+// VerifyEmail handles email verification links
+func VerifyEmail(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "Token ya uthibitisho inahitajika", http.StatusBadRequest)
+		return
+	}
+
+	query := `UPDATE users SET is_email_verified = TRUE, verification_token = NULL WHERE verification_token = $1 RETURNING id`
+	var userID string
+	err := config.DB.QueryRow(query, token).Scan(&userID)
+	if err != nil {
+		http.Error(w, "Token sio sahihi au imeshaisha muda wake", http.StatusBadRequest)
+		return
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
+	// Redirect to login with success message
+	http.Redirect(w, r, frontendURL+"/login?verified=true", http.StatusTemporaryRedirect)
 }
