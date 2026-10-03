@@ -74,7 +74,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		go func() {
 			if sendErr := SendOTPEmail(input.Email, otp); sendErr != nil {
-				log.Printf("Error sending OTP email to %s: %v", input.Email, sendErr)
+				log.Printf("[SMTP ERROR] Imeshindwa kutuma barua pepe kwa %s: %v", input.Email, sendErr)
 			}
 		}()
 	}
@@ -87,8 +87,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "OTP imetumwa",
+		"message": "Msimbo umetumwa kwenye barua pepe yako",
 		"email": input.Email,
 	})
 }
