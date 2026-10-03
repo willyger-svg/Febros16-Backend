@@ -38,7 +38,7 @@ func main() {
 	mux.HandleFunc("/api/v1/auth/google/login", oauthService.HandleGoogleLogin)
 	mux.HandleFunc("/api/v1/auth/google", oauthService.HandleGoogleLogin) // Fallback for cached frontend
 	mux.HandleFunc("/api/v1/auth/google/callback", oauthService.HandleGoogleCallback)
-	mux.HandleFunc("/api/v1/auth/verify", auth.VerifyEmail)
+	mux.HandleFunc("POST /api/v1/auth/verify", auth.VerifyEmail)
 
 	// PROTECTED Endpoints (API v1) - zinatumia middleware.RequireAuth
 	mux.HandleFunc("/api/v1/users/me", middleware.RequireAuth(users.GetMyProfile))

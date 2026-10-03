@@ -1,13 +1,14 @@
 package auth
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"fmt"
+	
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"time"
+	"math/rand"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -58,23 +59,22 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Insert using raw SQL
-	tokenBytes := make([]byte, 32)
-	rand.Read(tokenBytes)
-	verificationToken := hex.EncodeToString(tokenBytes)
+	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
+	otpExpiry := time.Now().Add(15 * time.Minute)
 
 	query := `
-		INSERT INTO users (full_name, email, password_hash, role, bio, created_at, updated_at, verification_token) 
-		VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16', $4, $5, $6)
+		INSERT INTO users (full_name, email, password_hash, role, bio, created_at, updated_at, otp_code, otp_expiry) 
+		VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16', $4, $5, $6, $7)
 		RETURNING id
 	`
 	var insertedID string
 	now := time.Now()
-	err = config.DB.QueryRow(query, input.FullName, input.Email, string(hashedPassword), now, now, verificationToken).Scan(&insertedID)
+	err = config.DB.QueryRow(query, input.FullName, input.Email, string(hashedPassword), now, now, otp, otpExpiry).Scan(&insertedID)
 	
 	if err == nil {
 		go func() {
-			if sendErr := SendVerificationEmail(input.Email, verificationToken); sendErr != nil {
-				log.Printf("Error sending email to %s: %v", input.Email, sendErr)
+			if sendErr := SendOTPEmail(input.Email, otp); sendErr != nil {
+				log.Printf("Error sending OTP email to %s: %v", input.Email, sendErr)
 			}
 		}()
 	}
@@ -88,7 +88,8 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
-		"message": "Usajili umefanikiwa kikamilifu!",
+		"message": "OTP imetumwa",
+		"email": input.Email,
 	})
 }
 
@@ -166,27 +167,82 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// VerifyEmail handles email verification links
+type VerifyOTPInput struct {
+	Email string `json:"email"`
+	OTP   string `json:"otp"`
+}
+
 func VerifyEmail(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, "Token ya uthibitisho inahitajika", http.StatusBadRequest)
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
-	query := `UPDATE users SET is_email_verified = TRUE, verification_token = NULL WHERE verification_token = $1 RETURNING id`
-	var userID string
-	err := config.DB.QueryRow(query, token).Scan(&userID)
+	var input VerifyOTPInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"success": false, "error": {"message": "Taarifa hazisomeki"}}`))
+		return
+	}
+
+	var userID, role string
+	var otpCode *string
+	var otpExpiry *time.Time
+	
+	err := config.DB.QueryRow(`SELECT id, role, otp_code, otp_expiry FROM users WHERE email = $1`, input.Email).Scan(&userID, &role, &otpCode, &otpExpiry)
 	if err != nil {
-		http.Error(w, "Token sio sahihi au imeshaisha muda wake", http.StatusBadRequest)
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"success": false, "error": {"message": "Mtumiaji hajapatikana"}}`))
 		return
 	}
 
-	frontendURL := os.Getenv("FRONTEND_URL")
-	if frontendURL == "" {
-		http.Error(w, "KOSA: FRONTEND_URL haijasanidiwa kwenye server (Missing Env)", http.StatusInternalServerError)
+	if otpCode == nil || *otpCode != input.OTP {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"success": false, "error": {"message": "Namba ya OTP sio sahihi"}}`))
 		return
 	}
-	// Redirect to login with success message
-	http.Redirect(w, r, frontendURL+"/login?verified=true", http.StatusTemporaryRedirect)
+
+	if otpExpiry != nil && time.Now().After(*otpExpiry) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"success": false, "error": {"message": "Namba ya OTP imeshaisha muda wake. Tafadhali omba nyingine."}}`))
+		return
+	}
+
+	// OTP is valid
+	_, err = config.DB.Exec(`UPDATE users SET is_email_verified = TRUE, otp_code = NULL, otp_expiry = NULL WHERE id = $1`, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Generate Token
+	tokenString, err := GenerateToken(userID, role)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Akaunti imethibitishwa kikamilifu!",
+		"data": map[string]interface{}{
+			"token": tokenString,
+		},
+	})
+}
+
+
+func GenerateToken(userID, role string) (string, error) {
+	claims := jwt.MapClaims{
+		"user_id": userID,
+		"role":    role,
+		"exp":     time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "super_secret_default_key_change_me"
+	}
+	return token.SignedString([]byte(secret))
 }

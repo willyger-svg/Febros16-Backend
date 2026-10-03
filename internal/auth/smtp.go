@@ -6,43 +6,29 @@ import (
 	"os"
 )
 
-func SendVerificationEmail(toEmail, token string) error {
+func SendOTPEmail(toEmail, otp string) error {
 	host := os.Getenv("SMTP_HOST")
 	port := os.Getenv("SMTP_PORT")
 	username := os.Getenv("SMTP_USERNAME")
 	password := os.Getenv("SMTP_PASSWORD")
 
 	if host == "" || username == "" || password == "" {
-		return fmt.Errorf("SMTP credentials zimekosekana kwenye .env")
+		return fmt.Errorf("SMTP credentials zimekosekana")
 	}
 
 	auth := smtp.PlainAuth("", username, password, host)
 
-	frontendURL := os.Getenv("FRONTEND_URL")
-	if frontendURL == "" {
-		return fmt.Errorf("FRONTEND_URL environment variable haijapatikana")
-	}
-	
-	// Tunatumia Backend API URL kufanya verification ili database i-update moja kwa moja
-	// Au tunaweza tumia Frontend URL ambayo ita-hit backend. Kwa urahisi tutumie Backend ku-verify then i-redirect
-	backendURL := "https://febros16-backend.onrender.com"
-	if os.Getenv("ENV") == "development" {
-		backendURL = "http://localhost:8080"
-	}
-
-	verifyLink := fmt.Sprintf("%s/api/v1/auth/verify?token=%s", backendURL, token)
-
-	subject := "Subject: Thibitisha Barua Pepe Yako - FEBROS16\r\n"
+	subject := "Subject: Namba Yako ya Uthibitisho (OTP) - FEBROS16\r\n"
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 	body := fmt.Sprintf(`
 		<html>
 		<body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px;">
 			<div style="max-w-md; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-				<h2 style="color: #2563eb; text-align: center;">Karibu FEBROS16!</h2>
+				<h2 style="color: #2563eb; text-align: center;">Thibitisha Akaunti Yako</h2>
 				<p style="color: #4b5563; font-size: 16px;">Habari,</p>
-				<p style="color: #4b5563; font-size: 16px;">Asante kwa kujiunga na Jukwaa la Watafiti (FEBROS16). Tafadhali bofya kitufe hapa chini kuthibitisha barua pepe yako:</p>
+				<p style="color: #4b5563; font-size: 16px;">Tafadhali tumia namba hii ya uthibitisho kukamilisha usajili wako. Namba hii itaisha muda wake ndani ya dakika 15.</p>
 				<div style="text-align: center; margin: 30px 0;">
-					<a href="%s" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Thibitisha Akaunti</a>
+					<span style="background-color: #f3f4f6; color: #1f2937; padding: 16px 32px; border-radius: 8px; font-weight: 900; font-size: 28px; letter-spacing: 4px; display: inline-block; border: 2px dashed #cbd5e1;">%s</span>
 				</div>
 				<p style="color: #6b7280; font-size: 14px;">Kama hukufanya jaribio hili, tafadhali puuza ujumbe huu.</p>
 				<hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
@@ -50,7 +36,7 @@ func SendVerificationEmail(toEmail, token string) error {
 			</div>
 		</body>
 		</html>
-	`, verifyLink)
+	`, otp)
 
 	msg := []byte(subject + mime + body)
 
