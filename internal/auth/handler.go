@@ -1,14 +1,14 @@
 package auth
 
 import (
-	"fmt"
-	
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"time"
-	"math/rand"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -58,38 +58,67 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Insert using raw SQL
 	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
 	otpExpiry := time.Now().Add(15 * time.Minute)
-
-	query := `
-		INSERT INTO users (full_name, email, password_hash, role, bio, created_at, updated_at, otp_code, otp_expiry) 
-		VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16', $4, $5, $6, $7)
-		RETURNING id
-	`
-	var insertedID string
 	now := time.Now()
-	err = config.DB.QueryRow(query, input.FullName, input.Email, string(hashedPassword), now, now, otp, otpExpiry).Scan(&insertedID)
-	
-	if err != nil {
-		log.Printf("[AUTH DB ERROR] Kosa wakati wa kusajili mtumiaji mpya: %v", err)
-		w.WriteHeader(http.StatusConflict)
-		w.Write([]byte(`{"success": false, "error": {"code": "CONFLICT", "message": "Kuna tatizo la Database. Email inaweza kuwa imeshasajiliwa."}}`))
+
+	// Check if user exists and if they are verified
+	var existingID string
+	var isVerified bool
+	checkQuery := `SELECT id, COALESCE(is_email_verified, false) FROM users WHERE email = $1`
+	err = config.DB.QueryRow(checkQuery, input.Email).Scan(&existingID, &isVerified)
+
+	if err == nil {
+		// User exists
+		if isVerified {
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(`{"success": false, "error": {"code": "CONFLICT", "message": "Email hii tayari inatumika na imethibitishwa."}}`))
+			return
+		}
+
+		// Update existing unverified user
+		updateQuery := `
+			UPDATE users 
+			SET full_name = $1, password_hash = $2, otp_code = $3, otp_expiry = $4, updated_at = $5
+			WHERE id = $6
+		`
+		_, updateErr := config.DB.Exec(updateQuery, input.FullName, string(hashedPassword), otp, otpExpiry, now, existingID)
+		if updateErr != nil {
+			log.Printf("[AUTH DB ERROR] Kosa wakati wa kusasisha mtumiaji: %v", updateErr)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"success": false, "error": {"code": "SERVER_ERROR", "message": "Kuna tatizo la Database."}}`))
+			return
+		}
+	} else if err == sql.ErrNoRows {
+		// Insert new user
+		insertQuery := `
+			INSERT INTO users (full_name, email, password_hash, role, bio, created_at, updated_at, otp_code, otp_expiry) 
+			VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16', $4, $5, $6, $7)
+		`
+		_, insertErr := config.DB.Exec(insertQuery, input.FullName, input.Email, string(hashedPassword), now, now, otp, otpExpiry)
+		if insertErr != nil {
+			log.Printf("[AUTH DB ERROR] Kosa wakati wa kusajili mtumiaji mpya: %v", insertErr)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"success": false, "error": {"code": "SERVER_ERROR", "message": "Kuna tatizo la Database."}}`))
+			return
+		}
+	} else {
+		log.Printf("[AUTH DB ERROR] Kosa wakati wa kuangalia email: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"success": false, "error": {"code": "SERVER_ERROR", "message": "Kuna tatizo la Database."}}`))
 		return
 	}
 
-	// Tuma Email synchronously ili tujue kama imefeli
-	if sendErr := SendOTPEmail(input.Email, otp); sendErr != nil {
-		log.Printf("SMTP ERROR: %v", sendErr)
-		// Delete user or just return 500 so they can try again. Here we return 500.
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Imeshindwa kutuma barua pepe ya OTP."}`))
-		return
-	}
+	// Tuma Email Asynchronously kutumia Goroutine
+	go func(email, otpCode string) {
+		if sendErr := SendOTPEmail(email, otpCode); sendErr != nil {
+			log.Printf("SMTP ERROR (Background): Imeshindwa kutuma barua pepe kwa %s: %v", email, sendErr)
+		}
+	}(input.Email, otp)
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "Akaunti imetengenezwa, angalia email yako kwa OTP",
+		"message": "Akaunti imetengenezwa/imesasishwa, angalia email yako kwa OTP",
 	})
 }
 
