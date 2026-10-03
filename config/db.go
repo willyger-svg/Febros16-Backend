@@ -48,6 +48,7 @@ func runMigrations(db *sql.DB) {
 		"000001_create_users_table.up.sql",
 		"000002_add_bio_and_profile_to_users.up.sql",
 		"000003_create_content_tables.up.sql",
+		"000004_create_research_projects.up.sql",
 	}
 
 	for _, file := range migrationFiles {
