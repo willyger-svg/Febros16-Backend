@@ -71,24 +71,25 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	err = config.DB.QueryRow(query, input.FullName, input.Email, string(hashedPassword), now, now, otp, otpExpiry).Scan(&insertedID)
 	
-	if err == nil {
-		go func() {
-			if sendErr := SendOTPEmail(input.Email, otp); sendErr != nil {
-				log.Printf("[SMTP ERROR] Imeshindwa kutuma barua pepe kwa %s: %v", input.Email, sendErr)
-			}
-		}()
-	}
 	if err != nil {
 		log.Printf("[AUTH DB ERROR] Kosa wakati wa kusajili mtumiaji mpya: %v", err)
-		w.WriteHeader(http.StatusConflict) // au StatusInternalServerError kutegemea na kosa
+		w.WriteHeader(http.StatusConflict)
 		w.Write([]byte(`{"success": false, "error": {"code": "CONFLICT", "message": "Kuna tatizo la Database. Email inaweza kuwa imeshasajiliwa."}}`))
+		return
+	}
+
+	// Tuma Email synchronously ili tujue kama imefeli
+	if sendErr := SendOTPEmail(input.Email, otp); sendErr != nil {
+		log.Printf("SMTP ERROR: %v", sendErr)
+		// Delete user or just return 500 so they can try again. Here we return 500.
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Imeshindwa kutuma barua pepe ya OTP."}`))
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "Msimbo umetumwa kwenye barua pepe yako",
-		"email": input.Email,
+		"message": "Akaunti imetengenezwa, angalia email yako kwa OTP",
 	})
 }
 
@@ -134,6 +135,12 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(input.Password)); err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"success": false, "error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`))
+		return
+	}
+
+	if !isEmailVerified {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error": "Tafadhali thibitisha barua pepe yako kwanza. OTP imetumwa."}`))
 		return
 	}
 
