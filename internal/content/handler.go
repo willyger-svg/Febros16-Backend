@@ -1,6 +1,7 @@
 package content
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -218,27 +219,34 @@ func UpdateArticle(w http.ResponseWriter, r *http.Request) {
 	// Ownership check and Update
 	var updateQuery string
 	var err error
-	var result string
+	var result sql.Result
 	
 	if role == "admin" {
 		updateQuery = `
 			UPDATE articles 
 			SET title = $1, slug = $2, content_body = $3, updated_at = $4
-			WHERE id = $5 RETURNING id
+			WHERE id = $5
 		`
-		err = config.DB.QueryRow(updateQuery, input.Title, input.Slug, input.ContentBody, now, id).Scan(&result)
+		result, err = config.DB.Exec(updateQuery, input.Title, input.Slug, input.ContentBody, now, id)
 	} else {
 		updateQuery = `
 			UPDATE articles 
 			SET title = $1, slug = $2, content_body = $3, updated_at = $4
-			WHERE id = $5 AND author_id = $6 RETURNING id
+			WHERE id = $5 AND author_id = $6
 		`
-		err = config.DB.QueryRow(updateQuery, input.Title, input.Slug, input.ContentBody, now, id, userID).Scan(&result)
+		result, err = config.DB.Exec(updateQuery, input.Title, input.Slug, input.ContentBody, now, id, userID)
 	}
 
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(`{"success": false, "error": {"code": "FORBIDDEN", "message": "Huna ruhusa ya kurekebisha makala hii au haipo"}}`))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"success": false, "error": {"code": "SERVER_ERROR", "message": "Imeshindwa kurekebisha makala"}}`))
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"success": false, "error": {"code": "NOT_FOUND", "message": "Makala haijapatikana au huna ruhusa ya kuirekebisha"}}`))
 		return
 	}
 
@@ -274,19 +282,26 @@ func DeleteArticle(w http.ResponseWriter, r *http.Request) {
 
 	var deleteQuery string
 	var err error
-	var result string
+	var result sql.Result
 	
 	if role == "admin" {
-		deleteQuery = `DELETE FROM articles WHERE id = $1 RETURNING id`
-		err = config.DB.QueryRow(deleteQuery, id).Scan(&result)
+		deleteQuery = `DELETE FROM articles WHERE id = $1`
+		result, err = config.DB.Exec(deleteQuery, id)
 	} else {
-		deleteQuery = `DELETE FROM articles WHERE id = $1 AND author_id = $2 RETURNING id`
-		err = config.DB.QueryRow(deleteQuery, id, userID).Scan(&result)
+		deleteQuery = `DELETE FROM articles WHERE id = $1 AND author_id = $2`
+		result, err = config.DB.Exec(deleteQuery, id, userID)
 	}
 
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(`{"success": false, "error": {"code": "FORBIDDEN", "message": "Huna ruhusa ya kufuta makala hii au haipo"}}`))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"success": false, "error": {"code": "SERVER_ERROR", "message": "Imeshindwa kufuta makala"}}`))
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"success": false, "error": {"code": "NOT_FOUND", "message": "Makala haijapatikana au huna ruhusa ya kuifuta"}}`))
 		return
 	}
 
