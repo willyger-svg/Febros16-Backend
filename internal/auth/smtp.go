@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net/smtp"
@@ -8,21 +9,19 @@ import (
 )
 
 func SendOTPEmail(toEmail, otp string) error {
-	host := os.Getenv("SMTP_HOST")
-	port := os.Getenv("SMTP_PORT")
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
 	username := os.Getenv("SMTP_USERNAME")
 	password := os.Getenv("SMTP_PASSWORD")
 
-	if host == "" || username == "" || password == "" {
+	if smtpHost == "" || username == "" || password == "" {
 		return fmt.Errorf("SMTP credentials zimekosekana")
 	}
 
-	auth := smtp.PlainAuth("", username, password, host)
-
-	from := fmt.Sprintf("FEBROS16 <%s>", username)
-	headers := fmt.Sprintf("From: %s\r\nTo: %s\r\n", from, toEmail)
+	fromHeader := fmt.Sprintf("FEBROS16 <%s>", username)
+	headers := fmt.Sprintf("From: %s\r\nTo: %s\r\n", fromHeader, toEmail)
 	subject := "Subject: Namba Yako ya Uthibitisho (OTP) - FEBROS16\r\n"
-	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
+	mime := "MIME-version: 1.0;\r\nContent-Type: text/html; charset=\"UTF-8\";\r\n\r\n"
 	body := fmt.Sprintf(`
 		<html>
 		<body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px;">
@@ -43,13 +42,60 @@ func SendOTPEmail(toEmail, otp string) error {
 
 	msg := []byte(headers + subject + mime + body)
 
-	addr := host + ":" + port
-	
-	err := smtp.SendMail(addr, auth, username, []string{toEmail}, msg)
+	// TLS Config ya moja kwa moja
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: false,
+		ServerName:         smtpHost,
+	}
+
+	// Dialing connection ya TLS kupitia port 465
+	conn, err := tls.Dial("tcp", smtpHost+":"+smtpPort, tlsConfig)
 	if err != nil {
-		log.Printf("🔥 SMTP SEND ERROR: %v", err)
-		return err
+		log.Printf("🔥 TLS Dial failed: %v", err)
+		return fmt.Errorf("TLS Dial failed: %w", err)
+	}
+	defer conn.Close()
+
+	client, err := smtp.NewClient(conn, smtpHost)
+	if err != nil {
+		log.Printf("🔥 SMTP client creation failed: %v", err)
+		return fmt.Errorf("SMTP client creation failed: %w", err)
+	}
+	defer client.Quit()
+
+	// CRITICAL FIX: Lazimisha kujitambulisha na Host badala ya localhost
+	if err = client.Hello(smtpHost); err != nil {
+		return fmt.Errorf("HELO handshake failed: %w", err)
+	}
+
+	auth := smtp.PlainAuth("", username, password, smtpHost)
+	if err = client.Auth(auth); err != nil {
+		return fmt.Errorf("SMTP Authentication failed: %w", err)
+	}
+
+	if err = client.Mail(username); err != nil {
+		return fmt.Errorf("MAIL FROM command failed: %w", err)
 	}
 	
+	if err = client.Rcpt(toEmail); err != nil {
+		return fmt.Errorf("RCPT TO command failed: %w", err)
+	}
+
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("DATA command initialization failed: %w", err)
+	}
+	
+	_, err = w.Write(msg)
+	if err != nil {
+		return fmt.Errorf("Writing data body failed: %w", err)
+	}
+	
+	err = w.Close()
+	if err != nil {
+		return fmt.Errorf("Closing data writer failed: %w", err)
+	}
+
+	log.Println("✅ Email imetumwa kikamilifu kwa:", toEmail)
 	return nil
 }
