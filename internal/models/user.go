@@ -17,4 +17,5 @@ type User struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 	HasCompletedAssessment *bool `json:"has_completed_assessment"`
 	AssessmentData   *string    `json:"assessment_data"`
+	GoogleID         *string    `json:"google_id"`
 }

@@ -32,6 +32,11 @@ func main() {
 	mux.HandleFunc("/api/v1/auth/register", auth.Register)
 	mux.HandleFunc("/api/v1/auth/login", auth.Login)
 
+	// Google OAuth Endpoints
+	oauthService := auth.NewOAuthService(config.DB)
+	mux.HandleFunc("GET /api/v1/auth/google", oauthService.HandleGoogleLogin)
+	mux.HandleFunc("GET /api/v1/auth/google/callback", oauthService.HandleGoogleCallback)
+
 	// PROTECTED Endpoints (API v1) - zinatumia middleware.RequireAuth
 	mux.HandleFunc("/api/v1/users/me", middleware.RequireAuth(users.GetMyProfile))
 	mux.HandleFunc("POST /api/v1/users/assessment", middleware.RequireAuth(users.SubmitAssessment))
