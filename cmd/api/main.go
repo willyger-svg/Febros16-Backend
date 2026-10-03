@@ -46,6 +46,11 @@ func main() {
 	// Dashboard Endpoints
 	mux.HandleFunc("/api/v1/dashboard/stats", middleware.RequireAuth(dashboard.GetDashboardStats))
 
+	// Settings Endpoints
+	mux.HandleFunc("PUT /api/v1/settings/profile", middleware.RequireAuth(users.UpdateProfile))
+	mux.HandleFunc("PUT /api/v1/settings/password", middleware.RequireAuth(users.ChangePassword))
+	mux.HandleFunc("DELETE /api/v1/settings/account", middleware.RequireAuth(users.DeleteAccount))
+
 	// CONTENT Endpoints (Phase 3)
 	mux.HandleFunc("GET /api/v1/articles", content.GetArticles)
 	mux.HandleFunc("POST /api/v1/articles", middleware.RequireAuth(content.CreateArticle))
