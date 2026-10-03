@@ -18,6 +18,8 @@ func SendOTPEmail(toEmail, otp string) error {
 
 	auth := smtp.PlainAuth("", username, password, host)
 
+	from := fmt.Sprintf("FEBROS16 <%s>", username)
+	headers := fmt.Sprintf("From: %s\r\nTo: %s\r\n", from, toEmail)
 	subject := "Subject: Namba Yako ya Uthibitisho (OTP) - FEBROS16\r\n"
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 	body := fmt.Sprintf(`
@@ -38,7 +40,7 @@ func SendOTPEmail(toEmail, otp string) error {
 		</html>
 	`, otp)
 
-	msg := []byte(subject + mime + body)
+	msg := []byte(headers + subject + mime + body)
 
 	addr := fmt.Sprintf("%s:%s", host, port)
 	return smtp.SendMail(addr, auth, username, []string{toEmail}, msg)
