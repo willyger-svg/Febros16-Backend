@@ -12,6 +12,7 @@ import (
 	"febros16-backend/internal/middleware"
 	"febros16-backend/internal/research"
 	"febros16-backend/internal/users"
+	"febros16-backend/internal/public"
 )
 
 func main() {
@@ -49,6 +50,14 @@ func main() {
 	mux.HandleFunc("GET /api/v1/research/{id}", research.GetResearchProject)
 	mux.HandleFunc("PUT /api/v1/research/{id}", middleware.RequireAuth(research.UpdateResearchProject))
 	mux.HandleFunc("DELETE /api/v1/research/{id}", middleware.RequireAuth(research.DeleteResearchProject))
+
+	
+	// PUBLIC Endpoints (Phase 4 / Landing Page Integration)
+	mux.HandleFunc("GET /api/v1/health", public.HealthCheckHandler)
+	mux.HandleFunc("GET /api/v1/stats", public.StatsHandler(config.DB))
+	mux.HandleFunc("GET /api/v1/search", public.SearchHandler(config.DB))
+	mux.HandleFunc("GET /api/v1/categories", public.CategoriesHandler(config.DB))
+	mux.HandleFunc("POST /api/v1/newsletter", public.NewsletterHandler(config.DB))
 
 	// Apply Middlewares: Logger -> CORS -> Mux
 	handler := middleware.LoggerMiddleware(middleware.CORSMiddleware(mux))
