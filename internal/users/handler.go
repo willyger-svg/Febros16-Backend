@@ -55,7 +55,7 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 		user.ProfilePictureURL = *profilePic
 	}
 	if createdAt != nil {
-		user.CreatedAt = *createdAt
+		user.CreatedAt = user.CreatedAt
 	}
 	if updatedAt != nil {
 		user.UpdatedAt = *updatedAt
@@ -90,9 +90,17 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 		"success": true,
 		"data": map[string]interface{}{
 			"user": user,
-			"stats": map[string]int{
+			// Calculate streak (days since joined, minimum 1)
+			"stats": map[string]interface{}{
 				"total_articles": totalArticles,
 				"total_research_projects": totalResearchProjects,
+				"streak_days": func() int {
+					days := int(time.Since(user.CreatedAt).Hours() / 24)
+					if days < 1 {
+						return 1
+					}
+					return days
+				}(),
 			},
 		},
 	})
