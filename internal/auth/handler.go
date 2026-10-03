@@ -183,7 +183,8 @@ func VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
+		http.Error(w, "KOSA: FRONTEND_URL haijasanidiwa kwenye server (Missing Env)", http.StatusInternalServerError)
+		return
 	}
 	// Redirect to login with success message
 	http.Redirect(w, r, frontendURL+"/login?verified=true", http.StatusTemporaryRedirect)

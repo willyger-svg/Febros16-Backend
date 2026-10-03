@@ -20,7 +20,7 @@ func SendVerificationEmail(toEmail, token string) error {
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
+		return fmt.Errorf("FRONTEND_URL environment variable haijapatikana")
 	}
 	
 	// Tunatumia Backend API URL kufanya verification ili database i-update moja kwa moja

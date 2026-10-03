@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -39,7 +40,7 @@ type OAuthService struct {
 func NewOAuthService(db *sql.DB) *OAuthService {
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:3000" // Default for Next.js frontend
+		log.Fatal("KOSA: FRONTEND_URL environment variable haijapatikana!")
 	}
 
 	secretKey := os.Getenv("JWT_SECRET")
