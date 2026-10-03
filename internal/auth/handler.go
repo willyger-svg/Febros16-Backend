@@ -109,7 +109,14 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+	
+	if user.PasswordHash == nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"success": false, "error": {"code": "UNAUTHORIZED", "message": "Akaunti hii inatumia Google Login. Tafadhali ingia na Google."}}`))
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(input.Password)); err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"success": false, "error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`))
 		return

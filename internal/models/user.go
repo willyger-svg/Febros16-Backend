@@ -9,7 +9,7 @@ type User struct {
 	ID                string    `json:"id"`
 	FullName          string    `json:"full_name"`
 	Email             string    `json:"email"`
-	PasswordHash      string    `json:"-"`
+	PasswordHash      *string    `json:"-"`
 	Role              string    `json:"role"`
 	Bio               string    `json:"bio"`
 	ProfilePictureURL string    `json:"profile_picture_url"`
