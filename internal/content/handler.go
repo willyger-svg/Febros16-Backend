@@ -193,7 +193,7 @@ func UpdateArticle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
-	role, _ := r.Context().Value(middleware.RoleKey).(string)
+	role, _ := r.Context().Value(middleware.UserRoleKey).(string)
 	if !ok || userID == "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"success": false, "error": {"code": "UNAUTHORIZED", "message": "Imeshindwa kuthibitisha mtumiaji"}}`))
@@ -266,7 +266,7 @@ func DeleteArticle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
-	role, _ := r.Context().Value(middleware.RoleKey).(string)
+	role, _ := r.Context().Value(middleware.UserRoleKey).(string)
 	if !ok || userID == "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"success": false, "error": {"code": "UNAUTHORIZED", "message": "Imeshindwa kuthibitisha mtumiaji"}}`))
