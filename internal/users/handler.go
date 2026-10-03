@@ -31,7 +31,7 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 	var createdAt, updatedAt *time.Time
 
 	query := `
-		SELECT id, full_name, email, role, bio, profile_picture_url, created_at, updated_at 
+		SELECT id, full_name, email, role, bio, profile_picture_url, created_at, updated_at, has_completed_assessment, assessment_data 
 		FROM users 
 		WHERE id = $1
 	`
@@ -44,6 +44,8 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 		&profilePic,
 		&createdAt,
 		&updatedAt,
+		&user.HasCompletedAssessment,
+		&user.AssessmentData,
 	)
 	
 	if bio != nil {
@@ -93,5 +95,52 @@ func GetMyProfile(w http.ResponseWriter, r *http.Request) {
 				"total_research_projects": totalResearchProjects,
 			},
 		},
+	})
+}
+
+
+func SubmitAssessment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"success": false, "error": {"code": "METHOD_NOT_ALLOWED", "message": "Njia hairuhusiwi"}}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"success": false, "error": {"code": "UNAUTHORIZED", "message": "Imeshindwa kuthibitisha mtumiaji"}}`))
+		return
+	}
+
+	// Read JSON body
+	var input map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"success": false, "error": {"code": "BAD_REQUEST", "message": "Data hazisomeki"}}`))
+		return
+	}
+
+	// Convert back to string for saving as JSONB
+	jsonData, err := json.Marshal(input)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"success": false, "error": {"code": "SERVER_ERROR", "message": "Kosa kuandaa data"}}`))
+		return
+	}
+
+	query := `UPDATE users SET has_completed_assessment = true, assessment_data = $1 WHERE id = $2`
+	_, err = config.DB.Exec(query, string(jsonData), userID)
+	if err != nil {
+		log.Printf("[USER DB ERROR] Kosa kuhifadhi assessment kwa mtumiaji %s: %v", userID, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"success": false, "error": {"code": "SERVER_ERROR", "message": "Imeshindwa kuhifadhi taarifa"}}`))
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Assessment imehifadhiwa kikamilifu",
 	})
 }

@@ -34,6 +34,7 @@ func main() {
 
 	// PROTECTED Endpoints (API v1) - zinatumia middleware.RequireAuth
 	mux.HandleFunc("/api/v1/users/me", middleware.RequireAuth(users.GetMyProfile))
+	mux.HandleFunc("POST /api/v1/users/assessment", middleware.RequireAuth(users.SubmitAssessment))
 
 	// CONTENT Endpoints (Phase 3)
 	mux.HandleFunc("GET /api/v1/articles", content.GetArticles)

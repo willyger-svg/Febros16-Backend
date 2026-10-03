@@ -99,8 +99,9 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user models.User
-	query := `SELECT id, password_hash, role FROM users WHERE email = $1`
-	err := config.DB.QueryRow(query, input.Email).Scan(&user.ID, &user.PasswordHash, &user.Role)
+	var hasCompletedAssessment bool
+	query := `SELECT id, password_hash, role, has_completed_assessment FROM users WHERE email = $1`
+	err := config.DB.QueryRow(query, input.Email).Scan(&user.ID, &user.PasswordHash, &user.Role, &hasCompletedAssessment)
 	if err != nil {
 		log.Printf("[AUTH DB ERROR] Mtumiaji hajapatikana au kosa la SQL wakati wa Login: %v", err)
 		w.WriteHeader(http.StatusUnauthorized)
@@ -138,6 +139,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		"message": "Umeingia kikamilifu!",
 		"data": map[string]string{
 			"token": tokenString,
+			"has_completed_assessment": hasCompletedAssessment,
 		},
 	})
 }
