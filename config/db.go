@@ -52,6 +52,7 @@ func runMigrations(db *sql.DB) {
 		"000005_add_assessment_to_users.up.sql",
 		"000006_add_google_oauth_columns.up.sql",
 		"000007_add_email_verification.up.sql",
+		"000008_create_user_progress_table.up.sql",
 	}
 
 	for _, file := range migrationFiles {

@@ -13,6 +13,7 @@ import (
 	"febros16-backend/internal/research"
 	"febros16-backend/internal/users"
 	"febros16-backend/internal/public"
+	"febros16-backend/internal/dashboard"
 )
 
 func main() {
@@ -42,6 +43,8 @@ func main() {
 	// PROTECTED Endpoints (API v1) - zinatumia middleware.RequireAuth
 	mux.HandleFunc("/api/v1/users/me", middleware.RequireAuth(users.GetMyProfile))
 	mux.HandleFunc("POST /api/v1/users/assessment", middleware.RequireAuth(users.SubmitAssessment))
+	// Dashboard Endpoints
+	mux.HandleFunc("/api/v1/dashboard/stats", middleware.RequireAuth(dashboard.GetDashboardStats))
 
 	// CONTENT Endpoints (Phase 3)
 	mux.HandleFunc("GET /api/v1/articles", content.GetArticles)
