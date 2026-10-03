@@ -15,6 +15,6 @@ type User struct {
 	ProfilePictureURL string    `json:"profile_picture_url"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
-	HasCompletedAssessment bool `json:"has_completed_assessment"`
+	HasCompletedAssessment *bool `json:"has_completed_assessment"`
 	AssessmentData   *string    `json:"assessment_data"`
 }

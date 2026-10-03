@@ -99,7 +99,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user models.User
-	var hasCompletedAssessment bool
+	var hasCompletedAssessment *bool
 	query := `SELECT id, password_hash, role, has_completed_assessment FROM users WHERE email = $1`
 	err := config.DB.QueryRow(query, input.Email).Scan(&user.ID, &user.PasswordHash, &user.Role, &hasCompletedAssessment)
 	if err != nil {
@@ -137,9 +137,9 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Umeingia kikamilifu!",
-		"data": map[string]string{
+		"data": map[string]interface{}{
 			"token": tokenString,
-			"has_completed_assessment": hasCompletedAssessment,
+			"has_completed_assessment": hasCompletedAssessment != nil && *hasCompletedAssessment,
 		},
 	})
 }
