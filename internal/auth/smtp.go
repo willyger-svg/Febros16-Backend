@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"log"
 	"net/smtp"
 	"os"
 )
@@ -42,6 +43,13 @@ func SendOTPEmail(toEmail, otp string) error {
 
 	msg := []byte(headers + subject + mime + body)
 
-	addr := fmt.Sprintf("%s:%s", host, port)
-	return smtp.SendMail(addr, auth, username, []string{toEmail}, msg)
+	addr := host + ":" + port
+	
+	err := smtp.SendMail(addr, auth, username, []string{toEmail}, msg)
+	if err != nil {
+		log.Printf("🔥 SMTP SEND ERROR: %v", err)
+		return err
+	}
+	
+	return nil
 }
