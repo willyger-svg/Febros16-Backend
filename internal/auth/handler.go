@@ -3,9 +3,7 @@ package auth
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -58,68 +56,50 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
-	otpExpiry := time.Now().Add(15 * time.Minute)
 	now := time.Now()
-
-	// Check if user exists and if they are verified
 	var existingID string
-	var isVerified bool
-	checkQuery := `SELECT id, COALESCE(is_email_verified, false) FROM users WHERE email = $1`
-	err = config.DB.QueryRow(checkQuery, input.Email).Scan(&existingID, &isVerified)
+	checkQuery := `SELECT id FROM users WHERE email = $1`
+	err = config.DB.QueryRow(checkQuery, input.Email).Scan(&existingID)
 
 	if err == nil {
 		// User exists
-		if isVerified {
-			w.WriteHeader(http.StatusConflict)
-			w.Write([]byte(`{"success": false, "error": {"code": "CONFLICT", "message": "Email hii tayari inatumika na imethibitishwa."}}`))
-			return
-		}
-
-		// Update existing unverified user
-		updateQuery := `
-			UPDATE users 
-			SET full_name = $1, password_hash = $2, otp_code = $3, otp_expiry = $4, updated_at = $5
-			WHERE id = $6
-		`
-		_, updateErr := config.DB.Exec(updateQuery, input.FullName, string(hashedPassword), otp, otpExpiry, now, existingID)
-		if updateErr != nil {
-			log.Printf("[AUTH DB ERROR] Kosa wakati wa kusasisha mtumiaji: %v", updateErr)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"success": false, "error": {"code": "SERVER_ERROR", "message": "Kuna tatizo la Database."}}`))
-			return
-		}
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte(`{"success": false, "error": {"code": "CONFLICT", "message": "Email hii tayari inatumika."}}`))
+		return
 	} else if err == sql.ErrNoRows {
 		// Insert new user
 		insertQuery := `
-			INSERT INTO users (full_name, email, password_hash, role, bio, created_at, updated_at, otp_code, otp_expiry) 
-			VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16', $4, $5, $6, $7)
+			INSERT INTO users (full_name, email, password_hash, role, bio, created_at, updated_at, is_email_verified) 
+			VALUES ($1, $2, $3, 'user', 'Mtumiaji mpya wa FEBROS16', $4, $5, TRUE)
+			RETURNING id, role
 		`
-		_, insertErr := config.DB.Exec(insertQuery, input.FullName, input.Email, string(hashedPassword), now, now, otp, otpExpiry)
-		if insertErr != nil {
-			log.Printf("[AUTH DB ERROR] Kosa wakati wa kusajili mtumiaji mpya: %v", insertErr)
+		var userID, role string
+		err := config.DB.QueryRow(insertQuery, input.FullName, input.Email, string(hashedPassword), now, now).Scan(&userID, &role)
+		if err != nil {
+			log.Printf("[AUTH DB ERROR] Kosa wakati wa kusajili mtumiaji mpya: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(`{"success": false, "error": {"code": "SERVER_ERROR", "message": "Kuna tatizo la Database."}}`))
 			return
 		}
+
+		// Generate Token
+		tokenString, _ := GenerateToken(userID, role)
+
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Akaunti imetengenezwa kikamilifu",
+			"data": map[string]interface{}{
+				"token": tokenString,
+			},
+		})
+		return
 	} else {
 		log.Printf("[AUTH DB ERROR] Kosa wakati wa kuangalia email: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{"success": false, "error": {"code": "SERVER_ERROR", "message": "Kuna tatizo la Database."}}`))
 		return
 	}
-
-	// Tuma Email Asynchronously kutumia Goroutine
-	go func(email, otpCode string) {
-		if sendErr := SendOTPEmail(email, otpCode); sendErr != nil {
-			log.Printf("SMTP ERROR (Background): Imeshindwa kutuma barua pepe kwa %s: %v", email, sendErr)
-		}
-	}(input.Email, otp)
-
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "Akaunti imetengenezwa/imesasishwa, angalia email yako kwa OTP",
-	})
 }
 
 type LoginInput struct {
@@ -166,24 +146,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"success": false, "error": {"code": "UNAUTHORIZED", "message": "Email au Nenosiri sio sahihi"}}`))
 		return
 	}
-
-	if !isEmailVerified {
-		// Re-send OTP if unverified
-		otp := fmt.Sprintf("%06d", rand.Intn(1000000))
-		otpExpiry := time.Now().Add(15 * time.Minute)
-		_, updateErr := config.DB.Exec(`UPDATE users SET otp_code = $1, otp_expiry = $2 WHERE id = $3`, otp, otpExpiry, user.ID)
-		if updateErr == nil {
-			go func(email, otpCode string) {
-				if sendErr := SendOTPEmail(email, otpCode); sendErr != nil {
-					log.Printf("SMTP ERROR (Background): Imeshindwa kutuma barua pepe kwa %s: %v", email, sendErr)
-				}
-			}(input.Email, otp)
-		}
-		
-		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(`{"success": false, "error": {"code": "FORBIDDEN", "message": "Akaunti haijathibitishwa. OTP mpya imetumwa. Nenda kwenye 'Sign Up' na ujaze email yako tena ili kuweka OTP."}}`))
-		return
-	}
+	// OTP Requirement Removed completely. Everyone can login if password matches.
 
 	secretKey := os.Getenv("JWT_SECRET")
 	if secretKey == "" {
