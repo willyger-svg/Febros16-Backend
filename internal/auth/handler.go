@@ -168,8 +168,20 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !isEmailVerified {
+		// Re-send OTP if unverified
+		otp := fmt.Sprintf("%06d", rand.Intn(1000000))
+		otpExpiry := time.Now().Add(15 * time.Minute)
+		_, updateErr := config.DB.Exec(`UPDATE users SET otp_code = $1, otp_expiry = $2 WHERE id = $3`, otp, otpExpiry, user.ID)
+		if updateErr == nil {
+			go func(email, otpCode string) {
+				if sendErr := SendOTPEmail(email, otpCode); sendErr != nil {
+					log.Printf("SMTP ERROR (Background): Imeshindwa kutuma barua pepe kwa %s: %v", email, sendErr)
+				}
+			}(input.Email, otp)
+		}
+		
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(`{"error": "Tafadhali thibitisha barua pepe yako kwanza. OTP imetumwa."}`))
+		w.Write([]byte(`{"success": false, "error": {"code": "FORBIDDEN", "message": "Akaunti haijathibitishwa. OTP mpya imetumwa. Nenda kwenye 'Sign Up' na ujaze email yako tena ili kuweka OTP."}}`))
 		return
 	}
 
