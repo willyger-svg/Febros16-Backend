@@ -184,7 +184,7 @@ func (s *OAuthService) upsertGoogleUser(ctx context.Context, gu GoogleUserInfo) 
 	queryByEmail := `SELECT id, role FROM users WHERE email = $1 LIMIT 1`
 	err = s.DB.QueryRowContext(ctx, queryByEmail, gu.Email).Scan(&userID, &role)
 	if err == nil {
-		linkQuery := `UPDATE users SET google_id = $1, profile_picture_url = COALESCE(profile_picture_url, $2), updated_at = $3 WHERE id = $4`
+		linkQuery := `UPDATE users SET google_id = $1, profile_picture_url = COALESCE(profile_picture_url, $2), is_email_verified = TRUE, updated_at = $3 WHERE id = $4`
 		_, err = s.DB.ExecContext(ctx, linkQuery, gu.ID, gu.Picture, time.Now(), userID)
 		if err != nil {
 			return "", "", err
@@ -197,8 +197,8 @@ func (s *OAuthService) upsertGoogleUser(ctx context.Context, gu GoogleUserInfo) 
 	}
 
 	insertQuery := `
-		INSERT INTO users (full_name, email, google_id, profile_picture_url, role, bio, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, 'user', 'Mtumiaji wa FEBROS16 (Google Auth)', $5, $6)
+		INSERT INTO users (full_name, email, google_id, profile_picture_url, role, bio, created_at, updated_at, is_email_verified)
+		VALUES ($1, $2, $3, $4, 'user', 'Mtumiaji wa FEBROS16 (Google Auth)', $5, $6, TRUE)
 		RETURNING id, role
 	`
 	now := time.Now()
